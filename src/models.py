@@ -1,19 +1,55 @@
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import String, Boolean
-from sqlalchemy.orm import Mapped, mapped_column
+import os
+import sys
+from sqlalchemy import Column, ForeignKey, Integer, String, Enum
+from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy import create_engine
+from eralchemy2 import render_er
 
-db = SQLAlchemy()
+Base = declarative_base()
 
-class User(db.Model):
-    id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
-    password: Mapped[str] = mapped_column(nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean(), nullable=False)
+class User(Base):
+    __tablename__ = 'user'
+    id = Column(Integer, primary_key=True)
+    username = Column(String(250), unique=True, nullable=False)
+    firstname = Column(String(250), nullable=False)
+    lastname = Column(String(250), nullable=False)
+    email = Column(String(250), unique=True, nullable=False)
+    
+    posts = relationship('Post', backref='user', lazy=True)
+    comments = relationship('Comment', backref='user', lazy=True)
+    following = relationship('Follower', foreign_keys='[Follower.user_from_id]', backref='follower_user', lazy=True)
+    followers = relationship('Follower', foreign_keys='[Follower.user_to_id]', backref='following_user', lazy=True)
 
+class Follower(Base):
+    __tablename__ = 'follower'
+    user_from_id = Column(Integer, ForeignKey('user.id'), primary_key=True)
+    user_to_id = Column(Integer, ForeignKey('user.id'), primary_key=True)
 
-    def serialize(self):
-        return {
-            "id": self.id,
-            "email": self.email,
-            # do not serialize the password, its a security breach
-        }
+class Post(Base):
+    __tablename__ = 'post'
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+    
+    comments = relationship('Comment', backref='post', lazy=True)
+    media = relationship('Media', backref='post', lazy=True)
+
+class Media(Base):
+    __tablename__ = 'media'
+    id = Column(Integer, primary_key=True)
+    type = Column(Enum('image', 'video', name='media_type'), nullable=False)
+    url = Column(String(250), nullable=False)
+    post_id = Column(Integer, ForeignKey('post.id'), nullable=False)
+
+class Comment(Base):
+    __tablename__ = 'comment'
+    id = Column(Integer, primary_key=True)
+    comment_text = Column(String(250), nullable=False)
+    author_id = Column(Integer, ForeignKey('user.id'), nullable=False)
+    post_id = Column(Integer, ForeignKey('post.id'), nullable=False)
+
+try:
+    result = render_er(Base, 'diagram.png')
+    print("Success! Check diagram.png")
+except Exception as e:
+    print("There was a problem generating the diagram")
+    raise e
